@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>ふたりの家計簿</title>
+<meta name="theme-color" content="#F1F3EE">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ふたりの家計簿">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<style>
+  :root{
+    --bg:#F1F3EE;
+    --surface:#FFFFFF;
+    --ink:#26332E;
+    --ink-soft:#5B6B64;
+    --accent:#3E6E64;
+    --accent-soft:#DCEAE5;
+    --stamp:#B33A3A;
+    --stamp-soft:#F3DEDE;
+    --line:#E1E5DF;
+    --radius:18px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);}
+  body{
+    font-family:'Noto Sans JP', sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    overscroll-behavior-y:none;
+  }
+  .tabular{font-variant-numeric:tabular-nums;}
+
+  header.app-header{
+    padding: calc(14px + var(--safe-top)) 20px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    position:sticky; top:0; z-index:10;
+    background:linear-gradient(180deg, var(--bg) 80%, rgba(241,243,238,0));
+  }
+  .brand{
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:900;
+    font-size:19px;
+    letter-spacing:.02em;
+  }
+  .brand small{
+    display:block;
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:400;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:2px;
+  }
+
+  main{
+    flex:1;
+    padding: 4px 20px calc(96px + var(--safe-bottom));
+    max-width:520px;
+    width:100%;
+    margin:0 auto;
+  }
+
+  .error-banner{
+    display:none;
+    background:var(--stamp-soft);
+    border:1px solid var(--stamp);
+    color:var(--stamp);
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:12.5px;
+    line-height:1.5;
+    margin-bottom:14px;
+    word-break:break-all;
+  }
+  .error-banner.show{display:block;}
+
+  .view{display:none;}
+  .view.active{display:block; animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  .card{
+    background:var(--surface);
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    padding:20px;
+    margin-bottom:16px;
+  }
+
+  label{
+    display:block;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0 0 6px 2px;
+    font-weight:500;
+  }
+  .field{margin-bottom:16px;}
+  input[type=date], input[type=number], input[type=text], select{
+    width:100%;
+    font-family:'Noto Sans JP', sans-serif;
+    font-size:16px;
+    padding:13px 14px;
+    border-radius:12px;
+    border:1.5px solid var(--line);
+    background:#FAFBFA;
+    color:var(--ink);
+    appearance:none;
+    -webkit-appearance:none;
+    min-height:48px;
+  }
+  select{
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="9"><path d="M1 1l6 6 6-6" stroke="%235B6B64" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:36px;
+  }
+  input:focus, select:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .amount-field{position:relative;}
+  .amount-field .yen{
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--ink-soft); font-size:16px; pointer-events:none;
+  }
+  .amount-field input{padding-left:32px; font-weight:700; font-size:18px;}
+
+  button{
+    font-family:'Zen Maru Gothic','Noto Sans JP', sans-serif;
+    border:none;
+    cursor:pointer;
+  }
+  .btn-primary{
+    width:100%;
+    background:var(--accent);
+    color:#fff;
+    font-size:16px;
+    font-weight:700;
+    padding:15px;
+    border-radius:14px;
+    transition:transform .12s ease, opacity .12s ease;
+  }
+  .btn-primary:active{transform:scale(.98); opacity:.9;}
+  .btn-primary:disabled{opacity:.5;}
+
+  .last-entry{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--accent-soft);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-top:14px;
+    animation:fadeIn .3s ease;
+  }
+  .last-entry .stamp-mini{
+    width:34px; height:34px; border-radius:50%;
+    border:2px solid var(--stamp);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--stamp); font-weight:900; font-size:14px; flex-shrink:0;
+    font-family:'Zen Maru Gothic', sans-serif;
+  }
+  .last-entry .info{flex:1; font-size:13.5px; line-height:1.4;}
+  .last-entry .info b{font-size:15px;}
+  .last-entry .actions{display:flex; gap:6px; flex-shrink:0;}
+  .last-entry .actions button{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-size:12px;
+    padding:8px 10px;
+    color:var(--ink);
+  }
+  .last-entry .actions button.danger{color:var(--stamp); border-color:var(--stamp);}
+
+  /* 集計タブ */
+  .month-nav{
+    display:flex; align-items:center; justify-content:center;
+    gap:18px; margin-bottom:18px;
+  }
+  .month-nav button{
+    background:var(--surface);
+    border:1px solid var(--line);
+    width:44px; height:44px; border-radius:50%;
+    font-size:18px; color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .month-nav .month-label{
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:700; font-size:17px;
+    min-width:140px; text-align:center;
+  }
+
+  .stamp-total{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:30px 20px 26px;
+    text-align:center;
+  }
+  .stamp-total .ring{
+    width:96px; height:96px; border-radius:50%;
+    border:3px solid var(--stamp);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:14px;
+    position:relative;
+  }
+  .stamp-total .ring::before{
+    content:"";
+    position:absolute; inset:6px;
+    border:1px solid var(--stamp);
+    border-radius:50%;
+  }
+  .stamp-total .ring span{
+    font-family:'Zen Maru Gothic', sans-serif;
+    color:var(--stamp);
+    font-weight:900;
+    font-size:13px;
+  }
+  .stamp-total .total-label{font-size:12.5px; color:var(--ink-soft); margin-bottom:4px;}
+  .stamp-total .total-amount{
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:900;
+    font-size:34px;
+  }
+
+  .chart-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .chart-wrap h3{
+    margin:0 0 14px; font-size:13px; color:var(--ink-soft); font-weight:500;
+  }
+  .chart-canvas-box{position:relative; height:220px;}
+  .empty-note{
+    text-align:center; color:var(--ink-soft); font-size:13px; padding:30px 0;
+  }
+  .loading-note{
+    text-align:center; color:var(--ink-soft); font-size:13px; padding:20px 0;
+  }
+
+  .cat-list{list-style:none; margin:0; padding:0;}
+  .cat-list li{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .cat-list li:last-child{border-bottom:none;}
+  .cat-list .dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .cat-list .name{flex:1; font-size:14px;}
+  .cat-list .amt{font-weight:700; font-size:14px;}
+  .cat-list .pct{font-size:11.5px; color:var(--ink-soft); width:40px; text-align:right;}
+
+  /* タブバー */
+  nav.tabbar{
+    position:fixed; left:0; right:0; bottom:0;
+    background:var(--surface);
+    border-top:1px solid var(--line);
+    display:flex;
+    padding-bottom:var(--safe-bottom);
+    z-index:20;
+  }
+  nav.tabbar button{
+    flex:1;
+    background:none;
+    padding:12px 0 10px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:500;
+  }
+  nav.tabbar button.active{color:var(--accent);}
+  nav.tabbar svg{width:22px; height:22px;}
+
+  .toast{
+    position:fixed; left:50%; bottom:calc(90px + var(--safe-bottom));
+    transform:translateX(-50%) translateY(10px);
+    background:var(--ink); color:#fff;
+    padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; pointer-events:none;
+    transition:all .25s ease;
+    z-index:30;
+    max-width:86vw;
+    text-align:center;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">ふたりの家計簿<small>月ごとにリセット・繰り越しなし</small></div>
+</header>
+
+<main>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <!-- 入力タブ -->
+  <section id="view-input" class="view active">
+    <div class="card">
+      <div class="field">
+        <label for="f-date">日付</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label for="f-category">費目</label>
+        <select id="f-category">
+          <option value="">読み込み中…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-amount">金額</label>
+        <div class="amount-field">
+          <span class="yen">¥</span>
+          <input type="number" id="f-amount" inputmode="numeric" placeholder="0" min="0">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:20px;">
+        <label for="f-memo">メモ(任意)</label>
+        <input type="text" id="f-memo" placeholder="例: スーパーで買い出し">
+      </div>
+      <button class="btn-primary" id="btn-submit" type="button">記録する</button>
+
+      <div class="last-entry" id="last-entry" style="display:none;">
+        <div class="stamp-mini">済</div>
+        <div class="info" id="last-entry-info"></div>
+        <div class="actions">
+          <button id="btn-edit" type="button">修正</button>
+          <button class="danger" id="btn-undo" type="button">取消</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 集計タブ -->
+  <section id="view-summary" class="view">
+    <div class="month-nav">
+      <button id="btn-prev-month" type="button" aria-label="前の月">‹</button>
+      <div class="month-label" id="month-label">-</div>
+      <button id="btn-next-month" type="button" aria-label="次の月">›</button>
+    </div>
+
+    <div class="card stamp-total">
+      <div class="ring"><span id="month-day-count">-</span></div>
+      <div class="total-label">この月の合計支出(ふたり分)</div>
+      <div class="total-amount tabular" id="total-amount">¥0</div>
+    </div>
+
+    <div class="chart-wrap">
+      <h3>費目別の内訳</h3>
+      <div class="loading-note" id="summary-loading" style="display:none;">読み込み中…</div>
+      <div class="chart-canvas-box" id="chart-box">
+        <canvas id="pie-chart"></canvas>
+      </div>
+      <div class="empty-note" id="empty-note" style="display:none;">まだこの月の記録がありません</div>
+    </div>
+
+    <div class="card" id="cat-list-card">
+      <ul class="cat-list" id="cat-list"></ul>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button id="tab-input" class="active" data-view="view-input" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    入力
+  </button>
+  <button id="tab-summary" data-view="view-summary" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l7 4"/></svg>
+    集計
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   GASウェブアプリのURL(設定済み)
+   ============================================================ */
+var API_URL = "https://script.google.com/macros/s/AKfycbwUY-ZlQ8SSTTdN5ezvjH6ej8xUEXlmExGqn5gwkYWQ_nnLmjce209SlZjxe44jSXA1wQ/exec";
+
+var CAT_COLORS = ["#3E6E64","#B33A3A","#C98A3E","#5B7FA6","#8A6BAE","#5B9E6B","#C4577C","#7A8570","#4E96A8","#A6763E"];
+
+var state = {
+  categories: [],
+  viewMonth: null,
+  lastEntry: null,
+  summaryLoadedFor: null
+};
+var pieChart = null;
+
+/* ---------- ユーティリティ ---------- */
+function $(id){ return document.getElementById(id); }
+
+function currentMonthKey(d){
+  var date = d || new Date();
+  var y = date.getFullYear();
+  var m = String(date.getMonth() + 1).padStart(2, "0");
+  return y + "-" + m;
+}
+function todayISO(){
+  var d = new Date();
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+function yen(n){
+  return "¥" + Math.round(Number(n) || 0).toLocaleString("ja-JP");
+}
+function monthLabel(monthKey){
+  var parts = monthKey.split("-");
+  return parts[0] + "年 " + Number(parts[1]) + "月";
+}
+function daysInMonth(monthKey){
+  var parts = monthKey.split("-");
+  return new Date(Number(parts[0]), Number(parts[1]), 0).getDate();
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, function(m){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m];
+  });
+}
+function showToast(msg){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove("show"); }, 2600);
+}
+function showError(msg){
+  var b = $("error-banner");
+  b.textContent = msg;
+  b.classList.add("show");
+}
+function hideError(){
+  $("error-banner").classList.remove("show");
+}
+
+/* ---------- API 通信 ---------- */
+function apiGet(params){
+  var qs = Object.keys(params).map(function(k){
+    return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+  }).join("&");
+  return fetch(API_URL + "?" + qs, { method: "GET" })
+    .then(function(res){
+      if(!res.ok) throw new Error("通信エラー (HTTP " + res.status + ")");
+      return res.json();
+    });
+}
+function apiPost(payload){
+  return fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  }).then(function(res){
+    if(!res.ok) throw new Error("通信エラー (HTTP " + res.status + ")");
+    return res.json();
+  });
+}
+
+/* ---------- 費目 ---------- */
+function renderCategoryOptions(){
+  var sel = $("f-category");
+  if(state.categories.length === 0){
+    sel.innerHTML = '<option value="">費目がありません(費目マスタを確認)</option>';
+    return;
+  }
+  sel.innerHTML = state.categories.map(function(c){
+    return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + "</option>";
+  }).join("");
+}
+
+/* ---------- 直前の記録 ---------- */
+function restoreLastEntry(){
+  try{
+    var raw = localStorage.getItem("kakeibo_last_entry");
+    if(raw){
+      state.lastEntry = JSON.parse(raw);
+      renderLastEntry();
+    }
+  }catch(e){ /* 破損時は無視 */ }
+}
+function renderLastEntry(){
+  var box = $("last-entry");
+  if(!state.lastEntry){
+    box.style.display = "none";
+    return;
+  }
+  var e = state.lastEntry.entry;
+  $("last-entry-info").innerHTML =
+    "直前の記録<br><b>" + escapeHtml(e.category) + " " + yen(e.amount) + "</b> ・ " + escapeHtml(e.date);
+  box.style.display = "flex";
+}
+
+/* ---------- 記録する ---------- */
+function submitEntry(){
+  var btn = $("btn-submit");
+  var date = $("f-date").value;
+  var category = $("f-category").value;
+  var amount = Number($("f-amount").value);
+  var memo = $("f-memo").value.trim();
+
+  if(!date){ showToast("日付を入力してください"); return; }
+  if(!category){ showToast("費目を選択してください"); return; }
+  if(!amount || amount <= 0){ showToast("金額を入力してください"); return; }
+
+  btn.disabled = true;
+  btn.textContent = "記録中…";
+
+  apiPost({ action: "add", date: date, category: category, amount: amount, memo: memo })
+    .then(function(res){
+      if(!res.ok) throw new Error(res.error || "記録に失敗しました");
+      state.lastEntry = { month: res.month, row: res.row, entry: res.entry };
+      try{ localStorage.setItem("kakeibo_last_entry", JSON.stringify(state.lastEntry)); }catch(e){}
+      renderLastEntry();
+      $("f-amount").value = "";
+      $("f-memo").value = "";
+      showToast("記録しました");
+      state.summaryLoadedFor = null; // 次に集計を開いたとき再読み込みさせる
+    })
+    .catch(function(err){
+      showToast("エラー: " + err.message);
+    })
+    .then(function(){
+      btn.disabled = false;
+      btn.textContent = "記録する";
+    });
+}
+
+/* ---------- 取消・修正 ---------- */
+function undoLast(){
+  if(!state.lastEntry) return;
+  if(!confirm("直前の記録を取り消します。よろしいですか?")) return;
+  apiPost({ action: "deleteLast", month: state.lastEntry.month, row: state.lastEntry.row })
+    .then(function(res){
+      if(!res.ok) throw new Error(res.error || "取り消しに失敗しました");
+      showToast("取り消しました");
+      state.lastEntry = null;
+      try{ localStorage.removeItem("kakeibo_last_entry"); }catch(e){}
+      renderLastEntry();
+      state.summaryLoadedFor = null;
+    })
+    .catch(function(err){
+      showToast("エラー: " + err.message);
+    });
+}
+function editLast(){
+  if(!state.lastEntry) return;
+  var e = state.lastEntry.entry;
+  var target = state.lastEntry;
+
+  apiPost({ action: "deleteLast", month: target.month, row: target.row })
+    .then(function(res){
+      if(!res.ok) throw new Error(res.error || "準備に失敗しました");
+      $("f-date").value = e.date;
+      $("f-category").value = e.category;
+      $("f-amount").value = e.amount;
+      $("f-memo").value = e.memo || "";
+      state.lastEntry = null;
+      try{ localStorage.removeItem("kakeibo_last_entry"); }catch(err){}
+      renderLastEntry();
+      state.summaryLoadedFor = null;
+      showToast("内容を直して、もう一度「記録する」を押してください");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    })
+    .catch(function(err){
+      showToast("エラー: " + err.message);
+    });
+}
+
+/* ---------- 集計 ---------- */
+function loadSummary(monthKey, force){
+  if(!force && state.summaryLoadedFor === monthKey) return;
+
+  $("month-label").textContent = monthLabel(monthKey);
+  $("month-day-count").textContent = daysInMonth(monthKey) + "日間";
+  $("summary-loading").style.display = "block";
+  $("chart-box").style.display = "none";
+  $("empty-note").style.display = "none";
+
+  apiGet({ action: "summary", month: monthKey })
+    .then(function(data){
+      if(!data.ok) throw new Error(data.error || "取得に失敗しました");
+      if(state.viewMonth !== monthKey) return; // 表示中の月が変わっていたら破棄
+      state.summaryLoadedFor = monthKey;
+      renderSummary(data);
+    })
+    .catch(function(err){
+      showToast("読み込みエラー: " + err.message);
+      $("summary-loading").style.display = "none";
+    });
+}
+
+function renderSummary(data){
+  $("summary-loading").style.display = "none";
+  $("total-amount").textContent = yen(data.total || 0);
+
+  var byCategory = data.byCategory || [];
+  var chartBox = $("chart-box");
+  var emptyNote = $("empty-note");
+  var catListCard = $("cat-list-card");
+
+  if(byCategory.length === 0){
+    chartBox.style.display = "none";
+    emptyNote.style.display = "block";
+    catListCard.style.display = "none";
+    if(pieChart){ pieChart.destroy(); pieChart = null; }
+    return;
+  }
+
+  emptyNote.style.display = "none";
+  catListCard.style.display = "block";
+
+  var labels = byCategory.map(function(c){ return c.name; });
+  var values = byCategory.map(function(c){ return c.total; });
+  var colors = labels.map(function(_, i){ return CAT_COLORS[i % CAT_COLORS.length]; });
+
+  // Chart.jsが読み込めなかった場合はリストのみ表示
+  if(typeof Chart !== "undefined"){
+    chartBox.style.display = "block";
+    var ctx = $("pie-chart").getContext("2d");
+    if(pieChart) pieChart.destroy();
+    pieChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: labels,
+        datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: "62%",
+        plugins: { legend: { display: false } }
+      }
+    });
+  }else{
+    chartBox.style.display = "none";
+  }
+
+  var total = data.total || 1;
+  $("cat-list").innerHTML = byCategory.map(function(c, i){
+    return '<li>' +
+      '<span class="dot" style="background:' + colors[i] + '"></span>' +
+      '<span class="name">' + escapeHtml(c.name) + "</span>" +
+      '<span class="amt tabular">' + yen(c.total) + "</span>" +
+      '<span class="pct">' + Math.round(c.total / total * 100) + "%</span>" +
+      "</li>";
+  }).join("");
+}
+
+function shiftMonth(delta){
+  var parts = state.viewMonth.split("-");
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1 + delta, 1);
+  state.viewMonth = currentMonthKey(d);
+  loadSummary(state.viewMonth, true);
+}
+
+/* ---------- タブ切り替え ---------- */
+function switchTab(btn){
+  var tabs = document.querySelectorAll("nav.tabbar button");
+  var views = document.querySelectorAll(".view");
+  var i;
+  for(i = 0; i < tabs.length; i++) tabs[i].classList.remove("active");
+  for(i = 0; i < views.length; i++) views[i].classList.remove("active");
+  btn.classList.add("active");
+  $(btn.getAttribute("data-view")).classList.add("active");
+
+  if(btn.getAttribute("data-view") === "view-summary"){
+    loadSummary(state.viewMonth, state.summaryLoadedFor !== state.viewMonth);
+  }
+}
+
+/* ---------- 初期化 ---------- */
+function init(){
+  state.viewMonth = currentMonthKey();
+  $("f-date").value = todayISO();
+  restoreLastEntry();
+
+  // イベント登録
+  $("btn-submit").addEventListener("click", submitEntry);
+  $("btn-undo").addEventListener("click", undoLast);
+  $("btn-edit").addEventListener("click", editLast);
+  $("btn-prev-month").addEventListener("click", function(){ shiftMonth(-1); });
+  $("btn-next-month").addEventListener("click", function(){ shiftMonth(1); });
+
+  var tabs = document.querySelectorAll("nav.tabbar button");
+  for(var i = 0; i < tabs.length; i++){
+    (function(btn){
+      btn.addEventListener("click", function(){ switchTab(btn); });
+    })(tabs[i]);
+  }
+
+  // 費目リストの取得
+  apiGet({ action: "categories" })
+    .then(function(data){
+      if(!data.ok) throw new Error(data.error || "費目の取得に失敗しました");
+      hideError();
+      state.categories = data.categories || [];
+      renderCategoryOptions();
+    })
+    .catch(function(err){
+      showError("サーバーに接続できませんでした: " + err.message +
+        " / GAS側の「デプロイ」設定(アクセスできるユーザー: 全員)と、コード貼り付け後の再デプロイを確認してください。");
+      $("f-category").innerHTML = '<option value="">読み込み失敗(下の赤い表示を確認)</option>';
+    });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+// 予期しないエラーも画面に表示する(原因調査用)
+window.addEventListener("error", function(ev){
+  showError("アプリ内部エラー: " + (ev.message || "不明なエラー"));
+});
+
+/* ---------- Service Worker ---------- */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
